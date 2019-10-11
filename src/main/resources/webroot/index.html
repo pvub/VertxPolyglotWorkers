@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Distributed Chat Service</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
+        <script src="vertx-eventbus.js"></script>
+        <style>
+            .inset {
+              box-shadow: inset 0 0 4px #000000;
+              -moz-box-shadow: inset 0 0 4px #000000;
+              -webkit-box-shadow: inset 0 0 4px #000000;
+              width: 400px;
+              border-width: 4px;
+              padding: 5px;
+            }
+
+            input.inset {
+              height: 40px;
+            }
+
+            div.inset {
+              height: 500px;
+              white-space: pre-wrap
+            }
+            
+            .full-width {
+                min-width: 100%;
+                width:100%;
+            }
+            
+            .main-header {
+              text-align: center;
+              background: #1abc9c;
+              color: white;
+              font-size: 30px;
+            }
+            .section-header {
+              vertical-align: middle;
+              text-align: center;
+              background: #FFCE00;
+              color: white;
+              font-size: 20px;
+              height: 20%;
+              min-width: 160px;
+            }
+            .section-value {
+              display: inline-block;
+              vertical-align: middle;
+              text-align: center;
+              color: black;
+              font-size: 80px;
+              height: 80%;
+              width: 100%;
+            }
+            .section-container {
+                display: flex;
+                width: 100%;
+            }
+            .section {
+                border-radius: 15px;
+                min-height: 150px;
+                min-width: 150px;
+                width: 20%;
+                border-radius: 10px;
+                border: 3px solid #BADA55;
+            }
+        </style>
+        <script>
+            var eb = new EventBus("/eventbus/");
+            eb.onopen = function () {
+              eb.registerHandler("api.to.client", function (err, msg) {
+                  obj = JSON.parse(msg.body);
+                  if (typeof obj.instance !== 'undefined') {
+                    var idstr = '#WORKER'+obj.instance+'-completed-value';
+                    $(idstr).text(obj.completed);
+                  } else {
+                    $('#outstanding-value').text(obj.pending);
+                    $('#completed-value').text(obj.completed);
+                    $('#queue-value').text(obj.queue);
+                    $('#async-value').text(obj.async);
+                    $('#latency-value').text(obj.avg_lat);
+                  }
+              });
+            };
+
+//            function send(event) {
+//              if (event.keyCode == 13 || event.which == 13) {
+//                var message = $('#input').val();
+//                if (message.length > 0) {
+//                  eb.publish("chat.to.server", message);
+//                  $('#input').val("");
+//                }
+//              }
+//            }
+        </script>
+    </head>
+    <body>
+        <div class="main-header">API Metrics</div>
+        <div class="section-container">
+            <div class="section" id="outstanding">
+                <div class="section-header"><span>Outstanding Requests</span></div>
+                <div class="section-value"><span id="outstanding-value"></span></div>
+            </div>
+            <div class="section" id="completed">
+                <div class="section-header"><span>Completed</span></div>
+                <div class="section-value"><span id="completed-value"></span></div>
+            </div>
+            <div class="section" id="queue">
+                <div class="section-header"><span>Queue</span></div>
+                <div class="section-value"><span id="queue-value"></span></div>
+            </div>
+            <div class="section" id="async">
+                <div class="section-header"><span>Async</span></div>
+                <div class="section-value"><span id="async-value"></span></div>
+            </div>
+            <div class="section" id="latency">
+                <div class="section-header"><span>Latency</span></div>
+                <div class="section-value"><span id="latency-value"></span></div>
+            </div>
+        </div>
+        <div class="section-container">
+            <div class="section" id="WORKER1">
+                <div class="section-header"><span>WORKER1</span></div>
+                <div class="section-value"><span id="WORKER1-completed-value"></span></div>
+            </div>
+            <div class="section" id="WORKER2">
+                <div class="section-header"><span>WORKER2</span></div>
+                <div class="section-value"><span id="WORKER2-completed-value"></span></div>
+            </div>
+        </div>
+    </body>
+</html>
