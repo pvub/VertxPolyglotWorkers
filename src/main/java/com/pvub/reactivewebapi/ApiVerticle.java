@@ -126,10 +126,6 @@ public class ApiVerticle extends AbstractVerticle {
     }
     
     private void processConfigChange(JsonObject prev, JsonObject current) {
-        if (prev.getInteger("worker-count", 1) != current.getInteger("worker-count", 1)) {
-            m_worker_count = current.getInteger("worker-count", 1);
-            deployWorkers(m_worker_count);
-        }
     }
     
     private void startup(JsonObject config) {
@@ -174,7 +170,7 @@ public class ApiVerticle extends AbstractVerticle {
                 result -> {
                     if (result.succeeded()) {
                         m_logger.info("Listening now on port {}", port);
-                        deployWorkers(m_worker_count);
+                        deployJavaWorker();
                         deployJsWorker();
                         deployKotlinWorker();
                     } else {
@@ -243,35 +239,6 @@ public class ApiVerticle extends AbstractVerticle {
             }
         });
         
-//        m_api.fetchResource(idAsInt)
-//                .subscribeOn(m_scheduler)
-//                .observeOn(m_scheduler)
-//                .subscribe(r -> {
-//                    m_logger.info("Sending response for request {} Outstanding {}", id, m_metrics.removePendingRequest());
-//                    m_metrics.incrementCompletedCount();
-//                    m_latency.addAndGet((System.nanoTime() - startTS)/1000000);
-//                    if (response.closed() || response.ended()) {
-//                        return;
-//                    }
-//                    response
-//                            .setStatusCode(201)
-//                            .putHeader("content-type", 
-//                              "application/json; charset=utf-8")
-//                            .end(Json.encodePrettily(r));
-//                }, 
-//                e -> {
-//                    m_logger.info("Sending response for request {} Outstanding {}", id, m_metrics.removePendingRequest());
-//                    m_metrics.incrementCompletedCount();
-//                    m_latency.addAndGet((System.nanoTime() - startTS)/1000000);
-//                    if (response.closed() || response.ended()) {
-//                        return;
-//                    }
-//                    response
-//                            .setStatusCode(404)
-//                            .putHeader("content-type", 
-//                              "application/json; charset=utf-8")
-//                            .end();
-//                }, () -> {});
     }
     public void generateHealth(RoutingContext ctx) {
         ctx.response()
@@ -299,28 +266,61 @@ public class ApiVerticle extends AbstractVerticle {
         m_latency.set(0);
     }
     
-    private void deployWorkers(int count) {
-        if (count > m_current_workers.get()) {
-            while (count > m_current_workers.get()) {
-                addWorker();
-            }
-        } else if (count < m_current_workers.get()) {
-            while (count < m_current_workers.get()) {
-                removeWorker();
-            }
-        }
-    }
+//    private void deployWorkers(int count) {
+//        if (count > m_current_workers.get()) {
+//            while (count > m_current_workers.get()) {
+//                addWorker();
+//            }
+//        } else if (count < m_current_workers.get()) {
+//            while (count < m_current_workers.get()) {
+//                removeWorker();
+//            }
+//        }
+//    }
     
     private void deployJsWorker() {
-        vertx.deployVerticle("worker_verticle.js");
+        m_current_workers.incrementAndGet();
+        JsonObject config = new JsonObject().put("instance", m_current_workers.get());
+        DeploymentOptions workerOpts = new DeploymentOptions()
+                .setConfig(config)
+                .setWorker(true)
+                .setInstances(1)
+                .setWorkerPoolSize(1)
+                .setMultiThreaded(true);
+        vertx.deployVerticle("worker_verticle.js", workerOpts, res -> {
+            if(res.failed()){
+                m_logger.error("Failed to deploy JS worker verticle {}", "worker_verticle.js", res.cause());
+            }
+            else {
+                String depId = res.result();
+                m_deployed_verticles.add(depId);
+                m_logger.info("Deployed verticle {} DeploymentID {}", "worker_verticle.js", depId);
+            }
+        });
     }
 
     private void deployKotlinWorker() {
-        //kotlin.jvm.JvmClassMappingKt.getKotlinClass(KotlinWorkerVerticle.class);
-        vertx.deployVerticle(KotlinWorkerVerticle.class.getName());
+        m_current_workers.incrementAndGet();
+        JsonObject config = new JsonObject().put("instance", m_current_workers.get());
+        DeploymentOptions workerOpts = new DeploymentOptions()
+                .setConfig(config)
+                .setWorker(true)
+                .setInstances(1)
+                .setWorkerPoolSize(1)
+                .setMultiThreaded(true);
+        vertx.deployVerticle(KotlinWorkerVerticle.class.getName(), workerOpts, res -> {
+            if(res.failed()){
+                m_logger.error("Failed to deploy Kotlin worker verticle {}", KotlinWorkerVerticle.class.getName(), res.cause());
+            }
+            else {
+                String depId = res.result();
+                m_deployed_verticles.add(depId);
+                m_logger.info("Deployed verticle {} DeploymentID {}", KotlinWorkerVerticle.class.getName(), depId);
+            }
+        });
     }
 
-    private void addWorker() {
+    private void deployJavaWorker() {
         m_current_workers.incrementAndGet();
         JsonObject config = new JsonObject().put("instance", m_current_workers.get());
         DeploymentOptions workerOpts = new DeploymentOptions()
@@ -339,12 +339,5 @@ public class ApiVerticle extends AbstractVerticle {
                 m_logger.info("Deployed verticle {} DeploymentID {}", ApiWorkerVerticle.class.getName(), depId);
             }
         });
-    }
-    
-    private void removeWorker() {
-        m_current_workers.decrementAndGet();
-        String id = m_deployed_verticles.pop();
-        m_logger.info("Undeploying ID {} #WorkerVerticles {}", id, m_current_workers.get());
-        vertx.undeploy(id);
     }
 }
